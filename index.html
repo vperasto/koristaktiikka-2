@@ -8,8 +8,10 @@
 </head>
 <body>
     <div id="app-container">
+        <!-- PAINIKE SIIRRETTY TÄNNE -->
+        <button id="toggle-sidebar-btn" title="Piilota/Näytä työkalut">☰</button>
+
         <div id="sidebar">
-            <button id="toggle-sidebar-btn" title="Piilota/Näytä työkalut">☰</button>
             <h2>Työkalut</h2>
             
             <div class="tool-section">
@@ -22,27 +24,31 @@
             <div class="tool-section">
                 <h3>Pelaajat (vedä kentälle)</h3>
                 <div class="element-palette">
-                    <button class="element-btn draggable" draggable="true" data-type="player" data-shape="O" data-color-type="home" title="Kotipelaaja O">O</button>
-                    <button class="element-btn draggable" draggable="true" data-type="player" data-shape="X" data-color-type="away" title="Vieraspelaaja X">X</button>
-                    <button class="element-btn draggable player-number-home" draggable="true" data-type="player" data-shape="number" data-text="1" data-color-type="home" title="Kotipelaaja 1">1</button>
-                    <button class="element-btn draggable player-number-home" draggable="true" data-type="player" data-shape="number" data-text="2" data-color-type="home" title="Kotipelaaja 2">2</button>
-                    <button class="element-btn draggable player-number-home" draggable="true" data-type="player" data-shape="number" data-text="3" data-color-type="home" title="Kotipelaaja 3">3</button>
-                    <button class="element-btn draggable player-number-home" draggable="true" data-type="player" data-shape="number" data-text="4" data-color-type="home" title="Kotipelaaja 4">4</button>
-                    <button class="element-btn draggable player-number-home" draggable="true" data-type="player" data-shape="number" data-text="5" data-color-type="home" title="Kotipelaaja 5">5</button>
-                    <button class="element-btn draggable player-number-away" draggable="true" data-type="player" data-shape="number" data-text="1" data-color-type="away" title="Vieraspelaaja 1">1</button>
-                    <button class="element-btn draggable player-number-away" draggable="true" data-type="player" data-shape="number" data-text="2" data-color-type="away" title="Vieraspelaaja 2">2</button>
-                     {/* Lisää tarvittaessa vierasjoukkueen numeroita */}
+                    <button class="element-btn tool-selector draggable" draggable="true" data-tool="player" data-type="player" data-shape="O" data-color-type="home" title="Kotipelaaja O">O</button>
+                    <button class="element-btn tool-selector draggable" draggable="true" data-tool="player" data-type="player" data-shape="X" data-color-type="away" title="Vieraspelaaja X">X</button>
+                    <button class="element-btn tool-selector draggable player-number-home" draggable="true" data-tool="player" data-type="player" data-shape="number" data-text="1" data-color-type="home" title="Kotipelaaja 1">1</button>
+                    <button class="element-btn tool-selector draggable player-number-home" draggable="true" data-tool="player" data-type="player" data-shape="number" data-text="2" data-color-type="home" title="Kotipelaaja 2">2</button>
+                    <button class="element-btn tool-selector draggable player-number-home" draggable="true" data-tool="player" data-type="player" data-shape="number" data-text="3" data-color-type="home" title="Kotipelaaja 3">3</button>
+                    <button class="element-btn tool-selector draggable player-number-home" draggable="true" data-tool="player" data-type="player" data-shape="number" data-text="4" data-color-type="home" title="Kotipelaaja 4">4</button>
+                    <button class="element-btn tool-selector draggable player-number-home" draggable="true" data-tool="player" data-type="player" data-shape="number" data-text="5" data-color-type="home" title="Kotipelaaja 5">5</button>
+                    <button class="element-btn tool-selector draggable player-number-away" draggable="true" data-tool="player" data-type="player" data-shape="number" data-text="1" data-color-type="away" title="Vieraspelaaja 1">1</button>
+                    <button class="element-btn tool-selector draggable player-number-away" draggable="true" data-tool="player" data-type="player" data-shape="number" data-text="2" data-color-type="away" title="Vieraspelaaja 2">2</button>
                 </div>
             </div>
 
             <div class="tool-section">
-                <h3>Nuolet (vedä kentälle)</h3>
+                <h3>Nuolet (valitse & piirrä kentälle)</h3>
                  <div class="element-palette">
-                    <button class="element-btn draggable arrow-tool" draggable="true" data-type="arrow" data-arrow-type="straight" title="Suora nuoli (Liike)">→</button>
-                    <button class="element-btn draggable arrow-tool" draggable="true" data-type="arrow" data-arrow-type="dashed" title="Katkoviiva (Syöttö)">⇢</button>
-                    <button class="element-btn draggable arrow-tool" draggable="true" data-type="arrow" data-arrow-type="arc" title="Kaari (Skriini)">↷</button>
-                    <button class="element-btn draggable arrow-tool" draggable="true" data-type="arrow" data-arrow-type="zigzag" title="Zigzag (Painepuolustus)">↯</button>
+                    <!-- Muutettu: ei enää draggable, vaan tool-selector. Data-tool kertoo, että kyseessä on nuolityökalu -->
+                    <button class="element-btn tool-selector arrow-tool" data-tool="arrow" data-arrow-type="straight" title="Piirrä suora nuoli (Liike)">→</button>
+                    <button class="element-btn tool-selector arrow-tool" data-tool="arrow" data-arrow-type="dashed" title="Piirrä katkoviiva (Syöttö)">⇢</button>
+                    <button class="element-btn tool-selector arrow-tool" data-tool="arrow" data-arrow-type="arc" title="Piirrä kaari (Skriini)">↷</button>
+                    <button class="element-btn tool-selector arrow-tool" data-tool="arrow" data-arrow-type="zigzag" title="Piirrä zigzag (Painepuolustus)">↯</button>
                 </div>
+            </div>
+            <div class="tool-section">
+                <h3>Valintatyökalu</h3>
+                <button id="select-tool-btn" class="tool-selector" data-tool="select">Valitse / Siirrä</button>
             </div>
 
             <div class="tool-section">
@@ -56,14 +62,9 @@
 
         <div id="main-content">
             <div id="court-area">
-                <!-- CSS-pohjaisen kentän osat -->
                 <div class="court-half" id="court-half-left"></div>
                 <div class="court-half" id="court-half-right"></div>
-                <!-- Canvas piirtämistä varten -->
                 <canvas id="strategy-canvas"></canvas>
-                 <!-- Alkuperäinen kuvapohja, kommentoitu pois
-                <img id="court-image" src="assets/basketball_court_full.png" alt="Koripallokenttä">
-                -->
             </div>
         </div>
     </div>
