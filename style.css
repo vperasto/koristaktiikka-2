@@ -1,1 +1,243 @@
+:root {
+    --dark-bg: #0F172A;
+    --bright-red: #EF4444; /* Home symbols */
+    --orange: #F97316;      /* Accents, buttons */
+    --cyan: #22D3EE;        /* Away symbols */
+    --neon-pink: #EC4899;   /* Tactics arrows */
+    --white: #F8FAFC;       /* Texts, contrast */
+    --light-gray: #334155;  /* Sidebar bg slightly lighter */
 
+    /* Kentän värit (CSS-versio) */
+    --court-light-side: #E5E7EB; /* Vaalea harmaa (esim. vasen/hyökkäyspää) */
+    --court-dark-side: #D1D5DB;  /* Hieman tummempi harmaa (esim. oikea/puolustuspää) */
+    --court-line-color: var(--white);
+    --court-border-color: var(--white);
+    --court-border-width: 2px; /* Kentän reunaviivan paksuus */
+    --center-line-width: 4px; /* Keskiviivan paksuus */
+}
+
+* {
+    box-sizing: border-box;
+    -webkit-tap-highlight-color: transparent; /* Poistaa sinisen korostuksen mobiililaitteilla */
+}
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background-color: var(--dark-bg);
+    color: var(--white);
+    margin: 0;
+    padding: 0;
+    overflow: hidden; /* Estää koko sivun vierityksen */
+    display: flex; /* For app-container */
+    height: 100vh;
+    width: 100vw;
+}
+
+#app-container {
+    display: flex;
+    width: 100%;
+    height: 100%;
+}
+
+#sidebar {
+    width: 280px;
+    min-width: 250px; /* Estää liian kapeaksi menemisen */
+    background-color: var(--light-gray); /* Hieman vaaleampi kuin päätausta */
+    padding: 15px;
+    height: 100vh;
+    overflow-y: auto;
+    transition: transform 0.3s ease-in-out;
+    z-index: 100;
+    display: flex;
+    flex-direction: column;
+}
+
+#sidebar.hidden {
+    transform: translateX(-100%);
+}
+
+#toggle-sidebar-btn {
+    background: var(--orange);
+    color: var(--white);
+    border: none;
+    padding: 10px 12px;
+    font-size: 1.2em;
+    cursor: pointer;
+    border-radius: 4px;
+    margin-bottom: 15px;
+    align-self: flex-start; /* Sijoittuu vasempaan reunaan kun flex-direction column */
+}
+
+#sidebar h2 {
+    color: var(--white);
+    margin-top: 0;
+    font-size: 1.5em;
+    border-bottom: 1px solid var(--dark-bg);
+    padding-bottom: 10px;
+}
+
+#sidebar h3 {
+    color: var(--white);
+    margin-top: 20px;
+    margin-bottom: 10px;
+    font-size: 1.1em;
+}
+
+.tool-section {
+    margin-bottom: 20px;
+}
+
+.element-palette {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+button, .court-select-btn {
+    background-color: var(--orange);
+    color: var(--white);
+    border: none;
+    padding: 10px 15px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.9em;
+    transition: background-color 0.2s;
+    text-align: center;
+}
+
+button:hover, .court-select-btn:hover {
+    background-color: #FDBA74; /* Lighter orange */
+}
+
+.court-select-btn {
+    width: 100%;
+    margin-bottom: 5px;
+    background-color: #4B5563; /* Gray for non-active court buttons */
+}
+.court-select-btn.active {
+    background-color: var(--orange);
+    font-weight: bold;
+}
+
+
+.element-btn {
+    width: 40px;
+    height: 40px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    font-size: 1.2em;
+    font-weight: bold;
+}
+
+.element-btn.draggable {
+    cursor: grab;
+}
+.element-btn.draggable:active {
+    cursor: grabbing;
+}
+
+
+/* Player specific button styles */
+.element-btn[data-shape="O"] { background-color: var(--bright-red); color: var(--white); }
+.element-btn[data-shape="X"] { background-color: var(--cyan); color: var(--dark-bg); }
+
+.player-number-home { background-color: var(--bright-red); color: var(--white); }
+.player-number-away { background-color: var(--cyan); color: var(--dark-bg); }
+
+.arrow-tool {
+    font-size: 1.5em; /* Suuremmat nuolet napeissa */
+    color: var(--neon-pink);
+    background-color: #4B5563;
+}
+.arrow-tool:hover {
+    background-color: #6B7280;
+}
+
+
+#main-content {
+    flex-grow: 1;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 20px; 
+    overflow: hidden;
+    position: relative;
+    height: 100vh;
+}
+
+/* === CSS KENTTÄ ALKAA TÄSTÄ === */
+#court-area {
+    position: relative; /* Tarvitaan canvasin ja sisäosien absoluuttiseen sijoitteluun */
+    width: 90%; 
+    aspect-ratio: 1.87 / 1; /* Koripallokentän suhde (28m x 15m) */
+    max-width: 1200px; 
+    max-height: calc(100vh - 40px); 
+    background-color: transparent; /* Ei tarvita taustaväriä, jos puolikkaat täyttävät */
+    display: flex; /* Asettaa .court-half elementit vierekkäin */
+    border: var(--court-border-width) solid var(--court-border-color); /* Ulkoreunat */
+    box-shadow: 0 0 10px rgba(0,0,0,0.3);
+}
+
+.court-half {
+    width: 50%;
+    height: 100%;
+    position: relative;
+    transition: background-color 0.3s ease, width 0.3s ease; /* Animaatiot vaihdoille */
+}
+
+#court-half-left {
+    background-color: var(--court-light-side);
+    border-right: calc(var(--center-line-width) / 2) solid var(--court-line-color); /* Puolet keskiviivasta */
+}
+
+#court-half-right {
+    background-color: var(--court-dark-side);
+    border-left: calc(var(--center-line-width) / 2) solid var(--court-line-color); /* Toinen puoli keskiviivasta */
+}
+
+/* Keskiviivan piilotus luokalla */
+#court-area.hide-center-line #court-half-left {
+    border-right-width: 0;
+}
+#court-area.hide-center-line #court-half-right {
+    border-left-width: 0;
+}
+
+
+/* Piilotetaan alkuperäinen img-elementti, jos se on vielä HTML:ssä */
+#court-image {
+    display: none;
+}
+/* === CSS KENTTÄ LOPPUU TÄHÄN === */
+
+
+#strategy-canvas {
+    position: absolute;
+    top: 0; 
+    left: 0;
+    width: 100%; /* Täyttää court-area:n */
+    height: 100%;
+    /* background-color: rgba(255,0,0,0.1); // Debug: näkee canvasin alueen */
+}
+
+@media (max-width: 768px) {
+    #sidebar {
+        position: absolute; 
+        background-color: rgba(42, 54, 78, 0.95); 
+    }
+    #toggle-sidebar-btn {
+        position: fixed;
+        top: 10px;
+        left: 10px;
+        z-index: 101; 
+    }
+     #main-content {
+        padding: 10px; 
+    }
+    #court-area {
+        width: 95%; 
+        --court-border-width: 1px; /* Ohuempi reunaviiva mobiilissa */
+        --center-line-width: 2px; /* Ohuempi keskiviiva mobiilissa */
+    }
+}
