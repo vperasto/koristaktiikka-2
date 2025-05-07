@@ -6,19 +6,17 @@
     --neon-pink: #EC4899;   /* Tactics arrows */
     --white: #F8FAFC;       /* Texts, contrast */
     --light-gray: #334155;  /* Sidebar bg slightly lighter */
-
-    /* Kentän värit (CSS-versio) */
-    --court-light-side: #E5E7EB; /* Vaalea harmaa (esim. vasen/hyökkäyspää) */
-    --court-dark-side: #D1D5DB;  /* Hieman tummempi harmaa (esim. oikea/puolustuspää) */
+    --court-light-side: #E5E7EB; 
+    --court-dark-side: #D1D5DB;  
     --court-line-color: var(--white);
     --court-border-color: var(--white);
-    --court-border-width: 2px; /* Kentän reunaviivan paksuus */
-    --center-line-width: 4px; /* Keskiviivan paksuus */
+    --court-border-width: 2px; 
+    --center-line-width: 4px; 
 }
 
 * {
     box-sizing: border-box;
-    -webkit-tap-highlight-color: transparent; /* Poistaa sinisen korostuksen mobiililaitteilla */
+    -webkit-tap-highlight-color: transparent;
 }
 
 body {
@@ -27,8 +25,8 @@ body {
     color: var(--white);
     margin: 0;
     padding: 0;
-    overflow: hidden; /* Estää koko sivun vierityksen */
-    display: flex; /* For app-container */
+    overflow: hidden;
+    display: flex;
     height: 100vh;
     width: 100vw;
 }
@@ -37,26 +35,14 @@ body {
     display: flex;
     width: 100%;
     height: 100%;
+    position: relative; /* Tarvitaan jotta toggle-sidebar-btn voi olla fixed suhteessa tähän, jos halutaan */
 }
 
-#sidebar {
-    width: 280px;
-    min-width: 250px; /* Estää liian kapeaksi menemisen */
-    background-color: var(--light-gray); /* Hieman vaaleampi kuin päätausta */
-    padding: 15px;
-    height: 100vh;
-    overflow-y: auto;
-    transition: transform 0.3s ease-in-out;
-    z-index: 100;
-    display: flex;
-    flex-direction: column;
-}
-
-#sidebar.hidden {
-    transform: translateX(-100%);
-}
-
+/* --- Piilota/Näytä -napin sijoittelu --- */
 #toggle-sidebar-btn {
+    position: fixed; /* Pysyy paikallaan sivua vierittäessä (vaikka sitä ei nyt tapahdukaan) */
+    top: 15px;
+    left: 15px;
     background: var(--orange);
     color: var(--white);
     border: none;
@@ -64,9 +50,34 @@ body {
     font-size: 1.2em;
     cursor: pointer;
     border-radius: 4px;
-    margin-bottom: 15px;
-    align-self: flex-start; /* Sijoittuu vasempaan reunaan kun flex-direction column */
+    z-index: 200; /* Päällimmäisenä */
+    transition: left 0.3s ease-in-out; /* Animaatio jos halutaan napin liikkuvan */
 }
+
+#sidebar {
+    width: 280px;
+    min-width: 250px; 
+    background-color: var(--light-gray); 
+    padding: 15px;
+    /* padding-top: 60px; /* Jätä tilaa napille, jos se ei liiku */
+    height: 100vh;
+    overflow-y: auto;
+    transition: transform 0.3s ease-in-out;
+    z-index: 100; 
+    display: flex;
+    flex-direction: column;
+    position: fixed; /* Tai absolute, jos #app-container on relative */
+    left:0;
+    top:0;
+}
+
+#sidebar.hidden {
+    transform: translateX(-100%);
+}
+/* Kun sivupalkki on piilossa, siirretään toggle-nappia myös, jotta se on reunassa */
+/* Tämän voi tehdä myös JS:llä, jos halutaan tarkempi kontrolli */
+/* #sidebar.hidden + #toggle-sidebar-btn { left: 15px; } /* Tämä ei toimi, koska ne eivät ole sisaruksia enää */
+
 
 #sidebar h2 {
     color: var(--white);
@@ -93,7 +104,7 @@ body {
     gap: 8px;
 }
 
-button, .court-select-btn {
+button, .court-select-btn, .tool-selector {
     background-color: var(--orange);
     color: var(--white);
     border: none;
@@ -104,15 +115,21 @@ button, .court-select-btn {
     transition: background-color 0.2s;
     text-align: center;
 }
+#select-tool-btn { /* Oletustyökalun nappi */
+    width: 100%;
+    margin-top: 5px;
+    background-color: #4B5563;
+}
 
-button:hover, .court-select-btn:hover {
-    background-color: #FDBA74; /* Lighter orange */
+
+button:hover, .court-select-btn:hover, .tool-selector:hover {
+    background-color: #FDBA74; 
 }
 
 .court-select-btn {
     width: 100%;
     margin-bottom: 5px;
-    background-color: #4B5563; /* Gray for non-active court buttons */
+    background-color: #4B5563; 
 }
 .court-select-btn.active {
     background-color: var(--orange);
@@ -130,6 +147,14 @@ button:hover, .court-select-btn:hover {
     font-weight: bold;
 }
 
+/* Aktiivisen työkalun korostus */
+.tool-selector.active {
+    background-color: var(--neon-pink) !important; /* Varmistetaan että menee muiden yli */
+    color: var(--dark-bg) !important;
+    outline: 2px solid var(--white);
+}
+
+
 .element-btn.draggable {
     cursor: grab;
 }
@@ -137,16 +162,13 @@ button:hover, .court-select-btn:hover {
     cursor: grabbing;
 }
 
-
-/* Player specific button styles */
 .element-btn[data-shape="O"] { background-color: var(--bright-red); color: var(--white); }
 .element-btn[data-shape="X"] { background-color: var(--cyan); color: var(--dark-bg); }
-
 .player-number-home { background-color: var(--bright-red); color: var(--white); }
 .player-number-away { background-color: var(--cyan); color: var(--dark-bg); }
 
 .arrow-tool {
-    font-size: 1.5em; /* Suuremmat nuolet napeissa */
+    font-size: 1.5em; 
     color: var(--neon-pink);
     background-color: #4B5563;
 }
@@ -162,20 +184,26 @@ button:hover, .court-select-btn:hover {
     align-items: center;
     padding: 20px; 
     overflow: hidden;
-    position: relative;
+    position: relative; /* Varmistetaan että tämä on referenssi court-arealle */
     height: 100vh;
+    margin-left: 0; /* Oletus */
+    transition: margin-left 0.3s ease-in-out;
+}
+/* Siirrä pääsisältöä, kun sivupalkki on näkyvissä */
+#main-content.sidebar-visible {
+    margin-left: 280px; /* Sivupalkin leveys */
 }
 
-/* === CSS KENTTÄ ALKAA TÄSTÄ === */
+
 #court-area {
-    position: relative; /* Tarvitaan canvasin ja sisäosien absoluuttiseen sijoitteluun */
+    position: relative; 
     width: 90%; 
-    aspect-ratio: 1.87 / 1; /* Koripallokentän suhde (28m x 15m) */
+    aspect-ratio: 1.87 / 1; 
     max-width: 1200px; 
     max-height: calc(100vh - 40px); 
-    background-color: transparent; /* Ei tarvita taustaväriä, jos puolikkaat täyttävät */
-    display: flex; /* Asettaa .court-half elementit vierekkäin */
-    border: var(--court-border-width) solid var(--court-border-color); /* Ulkoreunat */
+    background-color: transparent; 
+    display: flex; 
+    border: var(--court-border-width) solid var(--court-border-color); 
     box-shadow: 0 0 10px rgba(0,0,0,0.3);
 }
 
@@ -183,20 +211,19 @@ button:hover, .court-select-btn:hover {
     width: 50%;
     height: 100%;
     position: relative;
-    transition: background-color 0.3s ease, width 0.3s ease; /* Animaatiot vaihdoille */
+    transition: background-color 0.3s ease, width 0.3s ease; 
 }
 
 #court-half-left {
     background-color: var(--court-light-side);
-    border-right: calc(var(--center-line-width) / 2) solid var(--court-line-color); /* Puolet keskiviivasta */
+    border-right: calc(var(--center-line-width) / 2) solid var(--court-line-color); 
 }
 
 #court-half-right {
     background-color: var(--court-dark-side);
-    border-left: calc(var(--center-line-width) / 2) solid var(--court-line-color); /* Toinen puoli keskiviivasta */
+    border-left: calc(var(--center-line-width) / 2) solid var(--court-line-color); 
 }
 
-/* Keskiviivan piilotus luokalla */
 #court-area.hide-center-line #court-half-left {
     border-right-width: 0;
 }
@@ -204,40 +231,33 @@ button:hover, .court-select-btn:hover {
     border-left-width: 0;
 }
 
-
-/* Piilotetaan alkuperäinen img-elementti, jos se on vielä HTML:ssä */
-#court-image {
-    display: none;
-}
-/* === CSS KENTTÄ LOPPUU TÄHÄN === */
-
+#court-image { display: none; }
 
 #strategy-canvas {
     position: absolute;
     top: 0; 
     left: 0;
-    width: 100%; /* Täyttää court-area:n */
+    width: 100%; 
     height: 100%;
-    /* background-color: rgba(255,0,0,0.1); // Debug: näkee canvasin alueen */
 }
 
 @media (max-width: 768px) {
     #sidebar {
-        position: absolute; 
-        background-color: rgba(42, 54, 78, 0.95); 
+        /* position: fixed; /* Jo määritelty yllä */
+        /* background-color: rgba(42, 54, 78, 0.95); /* Ei tarvita jos fixed */
     }
-    #toggle-sidebar-btn {
-        position: fixed;
-        top: 10px;
-        left: 10px;
-        z-index: 101; 
+    /* #toggle-sidebar-btn on jo fixed */
+    
+    #main-content.sidebar-visible {
+        margin-left: 0; /* Mobiilissa sivupalkki peittää */
     }
+
      #main-content {
         padding: 10px; 
     }
     #court-area {
         width: 95%; 
-        --court-border-width: 1px; /* Ohuempi reunaviiva mobiilissa */
-        --center-line-width: 2px; /* Ohuempi keskiviiva mobiilissa */
+        --court-border-width: 1px; 
+        --center-line-width: 2px; 
     }
 }
