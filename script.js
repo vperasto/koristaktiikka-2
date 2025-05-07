@@ -4,37 +4,44 @@ document.addEventListener('DOMContentLoaded', () => {
     const courtArea = document.getElementById('court-area');
     const sidebar = document.getElementById('sidebar');
     const toggleSidebarBtn = document.getElementById('toggle-sidebar-btn');
+    const mainContent = document.getElementById('main-content'); // Lisätty
 
     let elements = [];
     let selectedElement = null;
     let history = [];
     const MAX_HISTORY_STATES = 20;
 
-    let isDraggingPaletteElement = false;
-    // let paletteElementData = null; // Ei käytetä enää, dragstart siirtää datan suoraan
+    // --- Tool and Drawing State ---
+    let currentTool = 'select'; // Oletustyökalu on valinta/siirto
+    let currentArrowType = null; // Esim. 'straight', 'dashed'
+    let isDrawing = false; // Yleinen lippu piirtämiselle (esim. nuoli)
+    let startPoint = null; // Nuolen tai muun piirrettävän elementin aloituspiste
+    let previewElement = null; // Elementti, jota esikatsellaan piirron aikana
+
+    // Dragging state for existing elements
     let isMovingCanvasElement = false;
     let dragOffsetX, dragOffsetY;
 
+    // Dragging from palette (pelaajat)
+    let isDraggingPaletteElement = false;
+
     const colors = {
-        home: '#EF4444',
-        away: '#22D3EE',
-        arrow: '#EC4899',
-        textLight: '#F8FAFC',
-        textDark: '#0F172A',
-        selection: '#F97316'
+        home: '#EF4444', away: '#22D3EE', arrow: '#EC4899',
+        textLight: '#F8FAFC', textDark: '#0F172A', selection: '#F97316'
     };
 
-    const PLAYER_RADIUS = 15; // Säädä tätä tarvittaessa suhteessa kentän kokoon
-    const ARROW_DEFAULT_LENGTH = Math.min(courtArea.clientWidth * 0.1, 60); // Nuolen pituus suhteessa kenttään
-    const ARROW_HEAD_SIZE = 8;
+    const PLAYER_RADIUS = 15;
+    const ARROW_DEFAULT_LENGTH = 60; // Tätä käytetään nyt vain, jos nuoli luodaan ilman loppupistettä
+    const ARROW_HEAD_SIZE = 10; // Hieman isompi nuolenpää
 
     function init() {
         window.addEventListener('resize', resizeCanvasAndDraw);
         resizeCanvasAndDraw();
         setupEventListeners();
         saveState();
+        setActiveTool('select'); // Aseta valintatyökalu aktiiviseksi alussa
+        updateCssCourt(document.querySelector('.court-select-btn.active').dataset.courtType);
         draw();
-        updateCssCourt(document.querySelector('.court-select-btn.active').dataset.courtType); // Aseta alkuperäinen kenttänäkymä
     }
 
     function resizeCanvasAndDraw() {
@@ -51,20 +58,48 @@ document.addEventListener('DOMContentLoaded', () => {
     function setupEventListeners() {
         toggleSidebarBtn.addEventListener('click', () => {
             sidebar.classList.toggle('hidden');
-            setTimeout(resizeCanvasAndDraw, 310); // Odota CSS-transitionin loppuun
+            mainContent.classList.toggle('sidebar-visible', !sidebar.classList.contains('hidden'));
+             // Säädä napin sijaintia, jos sivupalkki on piilossa/näkyvissä
+            if (sidebar.classList.contains('hidden')) {
+                toggleSidebarBtn.style.left = '15px';
+            } else {
+                // Jos haluat napin siirtyvän sivupalkin reunaan:
+                // toggleSidebarBtn.style.left = `${sidebar.offsetWidth + 15}px`;
+                // Tai pidä se paikallaan:
+                toggleSidebarBtn.style.left = '15px'; 
+            }
+            setTimeout(resizeCanvasAndDraw, 310); 
         });
+        // Alkuasetus pääsisällön marginaalille
+        mainContent.classList.toggle('sidebar-visible', !sidebar.classList.contains('hidden'));
+         if (!sidebar.classList.contains('hidden')) {
+            // toggleSidebarBtn.style.left = `${sidebar.offsetWidth + 15}px`;
+         }
+
 
         document.querySelectorAll('.court-select-btn').forEach(button => {
             button.addEventListener('click', () => {
                 document.querySelectorAll('.court-select-btn').forEach(btn => btn.classList.remove('active'));
                 button.classList.add('active');
                 updateCssCourt(button.dataset.courtType);
-                resizeCanvasAndDraw(); // Varmista canvasin koko ja piirrä uudelleen
+                resizeCanvasAndDraw(); 
             });
         });
         
+        // --- Tool Selector Buttons ---
+        document.querySelectorAll('.tool-selector').forEach(button => {
+            button.addEventListener('click', () => {
+                const tool = button.dataset.tool;
+                setActiveTool(tool, button.dataset); // Välitä kaikki data-attribuutit
+            });
+        });
+
+        // --- Palette Element Drag (Pelaajat) ---
         document.querySelectorAll('.element-btn.draggable').forEach(button => {
             button.addEventListener('dragstart', (e) => {
+                // Varmista, että valintatyökalu on aktiivinen, jotta drag & drop toimii odotetusti
+                // Tai salli drag&drop riippumatta työkalusta, jos se on pelaaja
+                // Tässä oletetaan, että pelaajan voi aina vetää
                 isDraggingPaletteElement = true;
                 const data = { ...button.dataset };
                 e.dataTransfer.setData('application/json', JSON.stringify(data));
@@ -72,7 +107,6 @@ document.addEventListener('DOMContentLoaded', () => {
             });
             button.addEventListener('dragend', () => {
                 isDraggingPaletteElement = false;
-                // paletteElementData = null; // Ei tarvita enää
             });
         });
 
@@ -83,35 +117,79 @@ document.addEventListener('DOMContentLoaded', () => {
 
         canvas.addEventListener('drop', (e) => {
             e.preventDefault();
+            if (!isDraggingPaletteElement) return; // Salli drop vain paletista vedettäessä
+
             const jsonData = e.dataTransfer.getData('application/json');
             if (!jsonData) return;
 
             const data = JSON.parse(jsonData);
+            if (data.tool !== 'player') return; // Salli vain pelaajien drop
+
             const rect = canvas.getBoundingClientRect();
             const x = e.clientX - rect.left;
             const y = e.clientY - rect.top;
             
             createElementOnCanvas(data, x, y);
             isDraggingPaletteElement = false;
+            setActiveTool('select'); // Palaa valintatyökaluun pelaajan lisäämisen jälkeen
         });
         
+        // --- Canvas Interactions ---
         canvas.addEventListener('mousedown', handleInteractionStart);
         canvas.addEventListener('touchstart', handleInteractionStart, { passive: false });
         canvas.addEventListener('mousemove', handleInteractionMove);
         canvas.addEventListener('touchmove', handleInteractionMove, { passive: false });
-        document.addEventListener('mouseup', handleInteractionEnd); // Kuuntele globaalisti
-        document.addEventListener('touchend', handleInteractionEnd); // Kuuntele globaalisti
+        document.addEventListener('mouseup', handleInteractionEnd); 
+        document.addEventListener('touchend', handleInteractionEnd);
 
+        // --- Action Buttons ---
         document.getElementById('undo-btn').addEventListener('click', undo);
         document.getElementById('clear-btn').addEventListener('click', clearAll);
         document.getElementById('delete-selected-btn').addEventListener('click', deleteSelected);
         document.getElementById('rotate-selected-btn').addEventListener('click', rotateSelected);
         
         document.addEventListener('keydown', (e) => {
-            if ((e.key === 'Delete' || e.key === 'Backspace') && selectedElement) {
+            if ((e.key === 'Delete' || e.key === 'Backspace') && selectedElement && currentTool === 'select') {
                 deleteSelected();
             }
+            if (e.key === 'Escape') { // Esc lopettaa piirtämisen ja palaa valintatyökaluun
+                if (isDrawing) {
+                    isDrawing = false;
+                    previewElement = null;
+                    draw();
+                }
+                setActiveTool('select');
+            }
         });
+    }
+
+    function setActiveTool(toolName, toolData = {}) {
+        currentTool = toolName;
+        selectedElement = null; // Poista valinta työkalua vaihdettaessa
+        isDrawing = false; // Nollaa piirtotila
+        previewElement = null; // Nollaa esikatselu
+
+        // Päivitä nappien ulkoasu
+        document.querySelectorAll('.tool-selector').forEach(btn => btn.classList.remove('active'));
+        const activeButton = document.querySelector(`.tool-selector[data-tool="${toolName}"]` + (toolName === 'arrow' ? `[data-arrow-type="${toolData.arrowType}"]` : ''));
+        if (activeButton) {
+            activeButton.classList.add('active');
+        } else if (toolName === 'select') { // Varmista, että "Valitse" nappi aktivoituu
+            document.getElementById('select-tool-btn')?.classList.add('active');
+        }
+
+
+        if (toolName === 'arrow') {
+            currentArrowType = toolData.arrowType;
+            canvas.style.cursor = 'crosshair';
+        } else if (toolName === 'player' && toolData.draggable !== "true") { // Jos pelaaja lisätään klikkaamalla (ei toteutettu)
+            canvas.style.cursor = 'copy';
+        }
+         else { // select tool tai muu
+            canvas.style.cursor = 'default';
+            currentArrowType = null;
+        }
+        draw(); // Päivitä näyttö (esim. poista valinnan korostus)
     }
 
     function updateCssCourt(courtType) {
@@ -128,12 +206,12 @@ document.addEventListener('DOMContentLoaded', () => {
             courtHalfLeft.style.backgroundColor = 'var(--court-light-side)';
             courtHalfRight.style.backgroundColor = 'var(--court-dark-side)';
         } else if (courtType === 'offence') {
-            courtHalfLeft.style.backgroundColor = 'var(--court-light-side)'; // Tai mikä vain "aktiivisen" puolen väri
+            courtHalfLeft.style.backgroundColor = 'var(--court-light-side)';
             courtHalfRight.style.display = 'none';
             courtHalfLeft.style.width = '100%';
             courtArea.classList.add('hide-center-line');
         } else if (courtType === 'defence') {
-            courtHalfRight.style.backgroundColor = 'var(--court-dark-side)'; // Tai mikä vain "aktiivisen" puolen väri
+            courtHalfRight.style.backgroundColor = 'var(--court-dark-side)';
             courtHalfLeft.style.display = 'none';
             courtHalfRight.style.width = '100%';
             courtArea.classList.add('hide-center-line');
@@ -141,81 +219,100 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function handleInteractionStart(e) {
-        // Estä tekstin valinta raahauksen aikana, jos canvas on jonkin tekstielementin päällä
         if (e.target === canvas) e.preventDefault(); 
-        
         const pos = getEventPosition(e);
         if (!pos) return;
 
-        selectedElement = getElementAtPosition(pos.x, pos.y);
-
-        if (selectedElement) {
-            isMovingCanvasElement = true;
-            dragOffsetX = pos.x - selectedElement.x;
-            dragOffsetY = pos.y - selectedElement.y;
-        } else {
-            // Jos klikattiin tyhjää, poista valinta
-            selectedElement = null;
+        if (currentTool === 'arrow' && currentArrowType) {
+            isDrawing = true;
+            startPoint = pos;
+            previewElement = { // Alustava esikatseluelementti
+                type: 'arrow',
+                arrowType: currentArrowType,
+                x: startPoint.x, // Aluksi keskipiste on aloituspiste
+                y: startPoint.y,
+                length: 0,
+                rotation: 0
+            };
+        } else if (currentTool === 'select') {
+            selectedElement = getElementAtPosition(pos.x, pos.y);
+            if (selectedElement) {
+                isMovingCanvasElement = true;
+                dragOffsetX = pos.x - selectedElement.x;
+                dragOffsetY = pos.y - selectedElement.y;
+            }
         }
         draw();
     }
 
     function handleInteractionMove(e) {
-        if (!isMovingCanvasElement || !selectedElement) return;
         if (e.target === canvas) e.preventDefault();
         const pos = getEventPosition(e);
         if (!pos) return;
 
-        selectedElement.x = pos.x - dragOffsetX;
-        selectedElement.y = pos.y - dragOffsetY;
-        draw();
+        if (isDrawing && currentTool === 'arrow' && startPoint) {
+            const dx = pos.x - startPoint.x;
+            const dy = pos.y - startPoint.y;
+            previewElement.length = Math.sqrt(dx * dx + dy * dy);
+            previewElement.rotation = Math.atan2(dy, dx);
+            // Nuolen keskipiste on piirtosuunnan keskellä
+            previewElement.x = startPoint.x + dx / 2;
+            previewElement.y = startPoint.y + dy / 2;
+            draw();
+        } else if (isMovingCanvasElement && selectedElement && currentTool === 'select') {
+            selectedElement.x = pos.x - dragOffsetX;
+            selectedElement.y = pos.y - dragOffsetY;
+            draw();
+        }
     }
 
     function handleInteractionEnd(e) {
-        // Tapahtuu vaikka hiiri/sormi vapautetaan canvasin ulkopuolella
-        if (isMovingCanvasElement && selectedElement) {
+        const pos = getEventPosition(e); // Tarvitaan, jos hiiri vapautetaan canvasin ulkopuolella
+
+        if (isDrawing && currentTool === 'arrow' && startPoint && previewElement && previewElement.length > ARROW_HEAD_SIZE * 2) { // Vain jos nuoli on tarpeeksi pitkä
+            // Luo pysyvä nuoli esikatselun perusteella
+            const finalArrow = { ...previewElement, id: Date.now() + Math.random().toString(36).substring(2, 9) };
+            elements.push(finalArrow);
+            selectedElement = finalArrow; // Valitse uusi nuoli
             saveState();
+            // setActiveTool('select'); // Kommentoitu pois, jotta voi piirtää useita nuolia peräkkäin
+        }
+        
+        isDrawing = false;
+        startPoint = null;
+        previewElement = null;
+        
+        if (isMovingCanvasElement && selectedElement) {
+            saveState(); // Tallenna tila vasta kun siirto on valmis
         }
         isMovingCanvasElement = false;
-        // selectedElement jää valituksi
+        
+        // Jos ei piirretty mitään merkittävää nuolta, eikä siirretty, ja klikattiin tyhjään, poista valinta.
+        if (currentTool === 'select' && !selectedElement && pos && !getElementAtPosition(pos.x, pos.y)) {
+             // Tämä ehto voi olla monimutkainen, jos halutaan tarkka "klikkaus tyhjään"
+        }
+
+        draw();
     }
 
     function getEventPosition(e) {
         const rect = canvas.getBoundingClientRect();
         let clientX, clientY;
-
         if (e.touches && e.touches.length > 0) {
-            clientX = e.touches[0].clientX;
-            clientY = e.touches[0].clientY;
-        } else if (e.changedTouches && e.changedTouches.length > 0) { // For touchend
-            clientX = e.changedTouches[0].clientX;
-            clientY = e.changedTouches[0].clientY;
-        }
-         else if (e.clientX !== undefined) {
-            clientX = e.clientX;
-            clientY = e.clientY;
-        } else {
-            return null;
-        }
-        return {
-            x: clientX - rect.left,
-            y: clientY - rect.top
-        };
+            clientX = e.touches[0].clientX; clientY = e.touches[0].clientY;
+        } else if (e.changedTouches && e.changedTouches.length > 0) {
+            clientX = e.changedTouches[0].clientX; clientY = e.changedTouches[0].clientY;
+        } else if (e.clientX !== undefined) {
+            clientX = e.clientX; clientY = e.clientY;
+        } else { return null; }
+        return { x: clientX - rect.left, y: clientY - rect.top };
     }
     
-    function createElementOnCanvas(data, x, y) {
-        const dynamicArrowLength = Math.min(canvas.width * 0.1, 60); // Päivitä nuolen pituus
+    function createElementOnCanvas(data, x, y) { // Käytetään nyt vain pelaajille (drag & drop)
         const newElement = {
             id: Date.now() + Math.random().toString(36).substring(2, 9),
-            type: data.type,
-            x: x,
-            y: y,
-            rotation: 0,
-            shape: data.shape,
-            text: data.text,
-            colorType: data.colorType,
-            arrowType: data.arrowType,
-            length: (data.type === 'arrow' ? dynamicArrowLength : undefined),
+            type: data.type, x: x, y: y, rotation: 0,
+            shape: data.shape, text: data.text, colorType: data.colorType
         };
         elements.push(newElement);
         selectedElement = newElement;
@@ -226,22 +323,12 @@ document.addEventListener('DOMContentLoaded', () => {
     function getElementAtPosition(x, y) {
         for (let i = elements.length - 1; i >= 0; i--) {
             const el = elements[i];
-            const R = (el.type === 'player') ? PLAYER_RADIUS * 1.2 : (el.length || ARROW_DEFAULT_LENGTH) / 1.8; // Suurennetaan hieman osuma-aluetta
-            
-            // Käännetyn elementin osumatarkistus on monimutkaisempi.
-            // Yksinkertaistettu etäisyys keskipisteestä:
-            const dxEl = el.x;
-            const dyEl = el.y;
-
-            // Käännä tarkistuspiste (x,y) elementin koordinaatistoon
+            const R = (el.type === 'player') ? PLAYER_RADIUS * 1.2 : (el.length || ARROW_DEFAULT_LENGTH) / 1.8;
+            const dxEl = el.x; const dyEl = el.y;
             const rotatedX = Math.cos(-el.rotation) * (x - dxEl) - Math.sin(-el.rotation) * (y - dyEl) + dxEl;
             const rotatedY = Math.sin(-el.rotation) * (x - dxEl) + Math.cos(-el.rotation) * (y - dyEl) + dyEl;
-            
             const distSq = (rotatedX - dxEl) * (rotatedX - dxEl) + (rotatedY - dyEl) * (rotatedY - dyEl);
-
-            if (distSq < R * R) {
-                return el;
-            }
+            if (distSq < R * R) return el;
         }
         return null;
     }
@@ -263,59 +350,70 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function saveState() {
         history.push(JSON.parse(JSON.stringify(elements)));
-        if (history.length > MAX_HISTORY_STATES) {
-            history.shift();
-        }
+        if (history.length > MAX_HISTORY_STATES) history.shift();
     }
 
     function undo() {
-        if (history.length <= 1) { // Jos vain alkuperäinen tyhjä tila tai ensimmäinen muutos
-            if (elements.length > 0) { // Jos on elementtejä, tyhjennetään ne
-                 elements = [];
-                 selectedElement = null;
-                 history = [JSON.parse(JSON.stringify(elements))]; // Tallenna tyhjä tila
+        if (history.length <= 1) {
+            if (elements.length > 0) {
+                 elements = []; selectedElement = null;
+                 history = [JSON.parse(JSON.stringify(elements))];
                  draw();
-            }
-            return;
+            } return;
         }
         history.pop();
         elements = JSON.parse(JSON.stringify(history[history.length - 1]));
-        selectedElement = null;
-        draw();
+        selectedElement = null; draw();
     }
 
     function clearAll() {
         if (confirm("Haluatko varmasti tyhjentää kentän?")) {
-            elements = [];
-            selectedElement = null;
-            history = [JSON.parse(JSON.stringify(elements))]; // Aloita historia uudelleen tyhjällä tilalla
-            draw();
+            elements = []; selectedElement = null;
+            history = [JSON.parse(JSON.stringify(elements))]; draw();
         }
     }
 
     function draw() {
-        if (!ctx || canvas.width === 0 || canvas.height === 0) return; // Varmista, että canvas on valmis
+        if (!ctx || canvas.width === 0 || canvas.height === 0) return;
         ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-        elements.forEach(el => {
+        elements.forEach(el => drawElement(el));
+        
+        // Piirrä esikatselunuoli, jos piirtämässä
+        if (isDrawing && previewElement && currentTool === 'arrow') {
+            drawElement(previewElement, true); // true merkkaa, että on esikatselu
+        }
+        
+        // Piirrä valitun elementin korostus, jos valintatyökalu on aktiivinen
+        if (selectedElement && currentTool === 'select') {
             ctx.save();
-            ctx.translate(el.x, el.y);
-            ctx.rotate(el.rotation);
-
-            if (el.type === 'player') {
-                drawPlayer(el);
-            } else if (el.type === 'arrow') {
-                drawArrow(el);
-            }
-            
-            if (selectedElement && selectedElement.id === el.id) {
-                drawSelection(el);
-            }
+            ctx.translate(selectedElement.x, selectedElement.y);
+            ctx.rotate(selectedElement.rotation);
+            drawSelection(selectedElement);
             ctx.restore();
-        });
+        }
     }
     
-    function drawSelection(el) {
+    function drawElement(el, isPreview = false) {
+        ctx.save();
+        ctx.translate(el.x, el.y);
+        ctx.rotate(el.rotation);
+
+        if (isPreview && el.type === 'arrow') {
+            ctx.globalAlpha = 0.5; // Tee esikatselusta hieman läpikuultava
+        }
+
+        if (el.type === 'player') {
+            drawPlayer(el);
+        } else if (el.type === 'arrow') {
+            drawArrow(el);
+        }
+        
+        ctx.globalAlpha = 1.0; // Palauta normaali alpha
+        ctx.restore();
+    }
+
+    function drawSelection(el) { // Tämä kutsutaan jo transformoidussa kontekstissa
         ctx.strokeStyle = colors.selection;
         ctx.lineWidth = 2;
         ctx.beginPath();
@@ -325,8 +423,9 @@ document.addEventListener('DOMContentLoaded', () => {
         } else if (el.type === 'arrow') {
             const len = el.length || ARROW_DEFAULT_LENGTH;
             const halfLen = len / 2;
-            const halfWidth = ARROW_HEAD_SIZE * 1.5; // Approximate width
-            ctx.rect(-halfLen - selectionPadding, -halfWidth - selectionPadding, len + 2 * selectionPadding, halfWidth * 2 + 2 * selectionPadding);
+            // Nuolen valintakehys voisi olla yksinkertainen suorakulmio sen pituuden ja pienen leveyden mukaan
+            const arrowHitWidth = ARROW_HEAD_SIZE * 2; // Leveys osumatarkistukselle
+            ctx.rect(-halfLen - selectionPadding, -arrowHitWidth/2 - selectionPadding, len + 2 * selectionPadding, arrowHitWidth + 2 * selectionPadding);
         }
         ctx.stroke();
     }
@@ -334,27 +433,16 @@ document.addEventListener('DOMContentLoaded', () => {
     function drawPlayer(el) {
         const playerColor = (el.colorType === 'home') ? colors.home : colors.away;
         const textColor = (el.colorType === 'home') ? colors.textLight : colors.textDark;
-        
         ctx.beginPath();
         ctx.arc(0, 0, PLAYER_RADIUS, 0, Math.PI * 2);
         ctx.fillStyle = playerColor;
         ctx.fill();
-
         if (el.shape === 'X') {
-            ctx.strokeStyle = textColor;
-            ctx.lineWidth = 3;
-            const d = PLAYER_RADIUS * 0.7;
-            ctx.moveTo(-d, -d);
-            ctx.lineTo(d, d);
-            ctx.moveTo(d, -d);
-            ctx.lineTo(-d, d);
-            ctx.stroke();
+            ctx.strokeStyle = textColor; ctx.lineWidth = 3; const d = PLAYER_RADIUS * 0.7;
+            ctx.moveTo(-d, -d); ctx.lineTo(d, d); ctx.moveTo(d, -d); ctx.lineTo(-d, d); ctx.stroke();
         } else if (el.shape === 'number' && el.text) {
-            ctx.fillStyle = textColor;
-            ctx.font = `bold ${PLAYER_RADIUS * 1.2}px sans-serif`; // Skaalaa fonttikoko pelaajan koon mukaan
-            ctx.textAlign = 'center';
-            ctx.textBaseline = 'middle';
-            ctx.fillText(el.text, 0, 1); // Pieni y-offsetti voi auttaa keskityksessä
+            ctx.fillStyle = textColor; ctx.font = `bold ${PLAYER_RADIUS * 1.2}px sans-serif`;
+            ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(el.text, 0, 1);
         }
     }
 
@@ -363,61 +451,42 @@ document.addEventListener('DOMContentLoaded', () => {
         ctx.fillStyle = colors.arrow;
         ctx.lineWidth = 3;
 
-        const len = el.length || ARROW_DEFAULT_LENGTH; // Käytä tallennettua pituutta tai oletusta
-        const startX = -len / 2;
+        const len = el.length || ARROW_DEFAULT_LENGTH; 
+        const startX = -len / 2; // Nuoli piirretään keskipisteensä ympärille
         const endX = len / 2;
 
         ctx.beginPath();
-        if (el.arrowType === 'dashed') {
-            ctx.setLineDash([8, 6]);
-        } else {
-            ctx.setLineDash([]);
-        }
-
+        if (el.arrowType === 'dashed') ctx.setLineDash([8, 6]);
+        else ctx.setLineDash([]);
+        
         ctx.moveTo(startX, 0);
 
-        switch (el.arrowType) {
-            case 'straight':
-            case 'dashed':
-                ctx.lineTo(endX, 0);
-                break;
-            case 'arc':
-                // Säädä kaaren jyrkkyyttä tarvittaessa
-                ctx.quadraticCurveTo(0, -len / 2.5, endX, 0); 
-                break;
-            case 'zigzag':
-                const segments = 4;
-                const segmentLength = len / segments;
-                const amplitude = PLAYER_RADIUS * 0.5; // Säädä amplitudia tarvittaessa
-                ctx.moveTo(startX,0);
-                for (let i = 0; i < segments; i++) {
-                    const currentX = startX + i * segmentLength;
-                    const nextX = startX + (i + 1) * segmentLength;
-                    // Vaihda suuntaa joka toisella segmentillä
-                    const currentY = (i % 2 === 0) ? -amplitude : amplitude;
-                    // Viimeinen segmentti päättyy (endX, 0)
-                    if (i === segments -1) {
-                         ctx.lineTo(nextX, 0);
-                    } else {
-                         ctx.lineTo(nextX, currentY);
-                    }
-                }
-                // Varmista, että loppupiste on oikea, jos zigzag on lyhyt
-                if (segments === 0) ctx.lineTo(endX,0);
-                break;
+        // Kaari ja Zigzag vaativat erilaista käsittelyä, jos pituus/rotaatio määrittää ne
+        // Tässä toteutuksessa ne ovat suoria, mutta eri viivatyylillä tai muodolla
+        if (el.arrowType === 'arc') { // Yksinkertainen symmetrinen kaari
+             // Kontrollipiste nuolen keskellä, kohtisuorassa nuolen suuntaan
+            // Tämän voisi tehdä monimutkaisemmaksi, esim. antaa käyttäjän säätää kaarevuutta
+            // Tässä vaiheessa kaari on vain hieman kaareva viiva.
+            // Piirretään suorana, mutta voidaan myöhemmin muuttaa, kun kaaren piirto toteutetaan.
+            // ctx.quadraticCurveTo(0, -len * 0.2, endX, 0); // Pieni kaari
+            ctx.lineTo(endX, 0); // Tällä hetkellä kaari piirretään suorana
+        } else if (el.arrowType === 'zigzag') { // Yksinkertainen zigzag
+            // Piirretään suorana, voidaan myöhemmin muuttaa
+            ctx.lineTo(endX, 0);
+        }
+        else { // straight, dashed
+            ctx.lineTo(endX, 0);
         }
         ctx.stroke();
         ctx.setLineDash([]);
 
-        // Piirrä nuolenpää
+        // Piirrä nuolenpää (aina nuolen "loppupäässä" eli endX)
         ctx.beginPath();
         ctx.moveTo(endX, 0);
-        ctx.lineTo(endX - ARROW_HEAD_SIZE, -ARROW_HEAD_SIZE / 1.5); // Leveämpi pää
-        ctx.lineTo(endX - ARROW_HEAD_SIZE, ARROW_HEAD_SIZE / 1.5);
+        ctx.lineTo(endX - ARROW_HEAD_SIZE, -ARROW_HEAD_SIZE / 2); // Kapeampi pää
+        ctx.lineTo(endX - ARROW_HEAD_SIZE, ARROW_HEAD_SIZE / 2);
         ctx.closePath();
         ctx.fill();
     }
-
-    // Käynnistä sovellus
     init();
 });
